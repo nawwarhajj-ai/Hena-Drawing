@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ارسمي معي</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:#fff7fb;font-family:system-ui,sans-serif;overflow:hidden}
+#menu{padding:16px;height:100%;overflow-y:auto}
+h1{text-align:center;color:#d6336c;margin:8px 0 16px}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.card{background:#fff;border:3px solid #ffd6e7;border-radius:18px;padding:8px;text-align:center;font-size:18px;color:#555}
+.card svg,.card img{width:100%;height:130px;object-fit:contain}
+.add{display:block;margin:16px auto;padding:14px 22px;font-size:18px;border:0;border-radius:14px;background:#d6336c;color:#fff}
+#viewer{display:none;position:fixed;inset:0;background:#000}
+#cam{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
+#stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;touch-action:none;opacity:.5}
+#stage>*{max-width:100%;max-height:100%}
+#bar{position:fixed;bottom:0;left:0;right:0;display:flex;gap:8px;padding:8px 8px calc(8px + env(safe-area-inset-bottom,0px));background:rgba(255,255,255,.92);align-items:center;justify-content:center;flex-wrap:wrap;color:#333}
+#bar button{font-size:20px;padding:8px 14px;border:0;border-radius:12px;background:#ffd6e7;color:#333}
+#bar input{width:110px}
+#hide{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));left:8px;z-index:5;opacity:.35;font-size:20px;border:0;border-radius:50%;width:44px;height:44px;background:#ddd}
+#msg{position:fixed;top:70px;left:0;right:0;text-align:center;color:#fff;background:rgba(214,51,108,.9);padding:8px;display:none}
+</style>
+</head>
+<body>
+<div id="menu">
+  <h1>ارسمي معي</h1>
+  <div class="grid" id="grid"></div>
+  <button class="add" onclick="document.getElementById('file').click()">إضافة صورتي</button>
+  <input type="file" id="file" accept="image/*" hidden>
+</div>
+<div id="viewer">
+  <video id="cam" autoplay playsinline muted></video>
+  <div id="stage"></div>
+  <div id="msg"></div>
+  <button id="hide" onclick="toggleBar()">☰</button>
+  <div id="bar">
+    <button onclick="closeViewer()">رجوع</button>
+    <button onclick="zoom(1.15)">＋</button>
+    <button onclick="zoom(0.87)">－</button>
+    <button onclick="rotate()">⟳</button>
+    <label>الشفافية <input type="range" min="10" max="100" value="50" oninput="stage.style.opacity=this.value/100"></label>
+  </div>
+</div>
+<script>
+const S='fill="none" stroke="#000" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"';
+const drawings=[
+{n:'قطة بفيونكة',s:`<svg viewBox="0 0 200 200" ${S}><path d="M45 85L38 30L82 55Q100 50 118 55L162 30L155 85Q170 115 152 142Q100 178 48 142Q30 115 45 85Z"/><ellipse cx="75" cy="100" rx="6" ry="8"/><ellipse cx="125" cy="100" rx="6" ry="8"/><ellipse cx="100" cy="115" rx="7" ry="5"/><path d="M55 108L22 100M55 120L22 128M145 108L178 100M145 120L178 128"/><path d="M128 52Q150 30 165 45Q160 62 138 62Q145 72 160 75Q135 85 128 66Z"/><circle cx="130" cy="58" r="7"/></svg>`},
+{n:'حيوان أصفر لطيف',s:`<svg viewBox="0 0 200 200" ${S}><path d="M62 80L40 15L85 50"/><path d="M138 80L160 15L115 50"/><ellipse cx="100" cy="115" rx="55" ry="50"/><circle cx="78" cy="105" r="7"/><circle cx="122" cy="105" r="7"/><circle cx="58" cy="128" r="10"/><circle cx="142" cy="128" r="10"/><path d="M95 120L105 120L100 126Z"/><path d="M100 126Q90 138 82 130M100 126Q110 138 118 130"/></svg>`},
+{n:'وحيد القرن',s:`<svg viewBox="0 0 200 200" ${S}><path d="M105 15L95 55L115 55Z"/><path d="M70 60L65 40L90 55M130 60L135 40L110 55"/><path d="M55 90Q60 55 100 55Q140 55 145 90Q150 140 120 160Q100 170 80 160Q50 140 55 90Z"/><circle cx="82" cy="100" r="7"/><circle cx="118" cy="100" r="7"/><path d="M90 130Q100 140 110 130"/></svg>`},
+{n:'أميرة',s:`<svg viewBox="0 0 200 200" ${S}><path d="M55 55L55 25L78 42L100 15L122 42L145 25L145 55Z"/><circle cx="100" cy="95" r="38"/><circle cx="86" cy="90" r="5"/><circle cx="114" cy="90" r="5"/><path d="M88 108Q100 118 112 108"/><path d="M70 130L40 190L160 190L130 130"/></svg>`},
+{n:'فراشة',s:`<svg viewBox="0 0 200 200" ${S}><path d="M100 60L100 150"/><path d="M100 100Q40 20 25 80Q20 120 100 105"/><path d="M100 100Q160 20 175 80Q180 120 100 105"/><path d="M100 110Q50 120 55 155Q70 175 100 120"/><path d="M100 110Q150 120 145 155Q130 175 100 120"/><path d="M95 60Q85 35 70 30M105 60Q115 35 130 30"/></svg>`},
+{n:'أرنب',s:`<svg viewBox="0 0 200 200" ${S}><path d="M75 80Q55 10 80 10Q100 15 95 75"/><path d="M125 80Q145 10 120 10Q100 15 105 75"/><ellipse cx="100" cy="115" rx="50" ry="45"/><circle cx="82" cy="108" r="6"/><circle cx="118" cy="108" r="6"/><path d="M95 122L105 122L100 129Z"/></svg>`},
+{n:'وردة',s:`<svg viewBox="0 0 200 200" ${S}><circle cx="100" cy="70" r="16"/><circle cx="100" cy="34" r="20"/><circle cx="134" cy="58" r="20"/><circle cx="122" cy="98" r="20"/><circle cx="78" cy="98" r="20"/><circle cx="66" cy="58" r="20"/><path d="M100 118L100 190"/></svg>`},
+{n:'قلب',s:`<svg viewBox="0 0 200 200" ${S}><path d="M100 170Q20 110 35 65Q55 25 100 70Q145 25 165 65Q180 110 100 170Z"/></svg>`}
+];
+const grid=document.getElementById('grid'),stage=document.getElementById('stage'),cam=document.getElementById('cam'),msg=document.getElementById('msg');
+let scale=1,rot=0,tx=0,ty=0,lock=null,stream=null;
+function addCard(h,l,f){const d=document.createElement('div');d.className='card';d.innerHTML=h+'<div>'+l+'</div>';d.onclick=f;grid.appendChild(d)}
+drawings.forEach(d=>addCard(d.s,d.n,()=>openViewer(d.s)));
+document.getElementById('file').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const h=`<img src="${r.result}">`;addCard(h,'صورتي',()=>openViewer(h));openViewer(h)};r.readAsDataURL(f)};
+async function openViewer(h){
+  stage.innerHTML=h;scale=1;rot=0;tx=0;ty=0;apply();
+  document.getElementById('menu').style.display='none';
+  document.getElementById('viewer').style.display='block';
+  document.getElementById('bar').style.display='flex';
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});cam.srcObject=stream;msg.style.display='none'}
+  catch(e){msg.textContent='لم تعمل الكاميرا، تأكد من السماح بها';msg.style.display='block'}
+  try{lock=await navigator.wakeLock.request('screen')}catch(e){}
+}
+function closeViewer(){
+  document.getElementById('viewer').style.display='none';
+  document.getElementById('menu').style.display='block';
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+  if(lock){lock.release();lock=null}
+}
+function apply(){const el=stage.firstElementChild;if(el)el.style.transform=`translate(${tx}px,${ty}px) scale(${scale}) rotate(${rot}deg)`}
+function zoom(f){scale*=f;apply()}
+function rotate(){rot+=90;apply()}
+function toggleBar(){const b=document.getElementById('bar');b.style.display=b.style.display==='none'?'flex':'none'}
+let sx,sy,drag=false;
+stage.addEventListener('touchstart',e=>{if(e.touches.length===1){drag=true;sx=e.touches[0].clientX-tx;sy=e.touches[0].clientY-ty}});
+stage.addEventListener('touchmove',e=>{if(drag&&e.touches.length===1){tx=e.touches[0].clientX-sx;ty=e.touches[0].clientY-sy;apply()}});
+stage.addEventListener('touchend',()=>drag=false);
+</script>
+</body>
+</html>
